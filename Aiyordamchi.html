@@ -1,0 +1,470 @@
+<!DOCTYPE html>
+<html lang="uz">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Kuchli AI</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    min-height: 100vh;
+    background: #0a0a0f;
+    font-family: 'Segoe UI', sans-serif;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    color: #fff;
+  }
+  .bg {
+    position: fixed; inset: 0;
+    background: radial-gradient(ellipse at 20% 50%, #1a0533 0%, transparent 60%),
+                radial-gradient(ellipse at 80% 20%, #001a3a 0%, transparent 60%), #0a0a0f;
+    z-index: 0;
+  }
+  .container {
+    position: relative; z-index: 1;
+    display: flex; flex-direction: column; gap: 10px;
+    padding: 12px; width: 100%; max-width: 450px;
+    height: 100vh; max-height: 100vh;
+  }
+  .header { text-align: center; }
+  .header h1 {
+    font-size: 22px; font-weight: 700;
+    background: linear-gradient(135deg, #a78bfa, #60a5fa, #34d399);
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+  }
+  .header p { font-size: 10px; color: #6b7280; }
+
+  .chat-box {
+    flex: 1; background: rgba(255,255,255,0.03);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 18px; padding: 14px; overflow-y: auto;
+    display: flex; flex-direction: column; gap: 8px; min-height: 0;
+  }
+  .chat-box::-webkit-scrollbar { width: 3px; }
+  .chat-box::-webkit-scrollbar-thumb { background: rgba(167, 139, 250, 0.4); border-radius: 10px; }
+
+  .msg {
+    max-width: 88%; padding: 10px 14px; border-radius: 16px;
+    font-size: 13px; line-height: 1.5; word-wrap: break-word;
+    animation: fadeIn 0.3s;
+  }
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+
+  .user-msg {
+    align-self: flex-end;
+    background: linear-gradient(135deg, #7c3aed, #2563eb); color: white;
+  }
+  .bot-msg {
+    align-self: flex-start;
+    background: rgba(255,255,255,0.06);
+    border: 1px solid rgba(255,255,255,0.1); color: #e5e7eb;
+  }
+  .typing-msg { align-self: flex-start; color: #a78bfa; font-size: 12px; padding: 6px 14px; }
+
+  .input-row { display: flex; gap: 8px; align-items: center; }
+  .input-wrapper {
+    flex: 1; display: flex; align-items: center;
+    background: rgba(255,255,255,0.05);
+    border: 1px solid rgba(255,255,255,0.12);
+    border-radius: 25px; padding: 4px 6px 4px 16px;
+  }
+  .input-wrapper input {
+    flex: 1; background: transparent; border: none;
+    color: white; font-size: 14px; padding: 10px 0; outline: none;
+  }
+  .input-wrapper input::placeholder { color: #555; }
+  .send-btn {
+    width: 44px; height: 44px; border-radius: 50%; border: none;
+    cursor: pointer; background: linear-gradient(135deg, #7c3aed, #2563eb);
+    color: white; font-size: 18px; flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+  }
+
+  .mic-row { display: flex; align-items: center; justify-content: center; gap: 10px; }
+  .mic-wrapper { position: relative; width: 80px; height: 80px; }
+  .ripple {
+    position: absolute; width: 80px; height: 80px;
+    border-radius: 50%; background: rgba(167, 139, 250, 0.12); animation: none;
+  }
+  .ripple.r2 { background: rgba(96, 165, 250, 0.08); }
+  .ripple.r3 { background: rgba(52, 211, 153, 0.05); }
+  @keyframes ripple {
+    0% { transform: scale(1); opacity: 1; }
+    100% { transform: scale(2.2); opacity: 0; }
+  }
+  .listening .ripple { animation: ripple 1.4s ease-out infinite; }
+  .listening .ripple.r2 { animation: ripple 1.4s ease-out 0.3s infinite; }
+  .listening .ripple.r3 { animation: ripple 1.4s ease-out 0.6s infinite; }
+
+  .mic-btn {
+    position: relative; width: 58px; height: 58px; border-radius: 50%;
+    border: none; cursor: pointer;
+    background: linear-gradient(135deg, #7c3aed, #2563eb);Shukrona:
+box-shadow: 0 0 20px rgba(124, 58, 237, 0.4);
+    font-size: 24px; display: flex; align-items: center; justify-content: center;
+    outline: none; -webkit-tap-highlight-color: transparent;
+  }
+  .mic-btn.active {
+    background: linear-gradient(135deg, #dc2626, #9333ea);
+    box-shadow: 0 0 40px rgba(220, 38, 38, 0.7);
+    animation: pulse-btn 0.7s ease-in-out infinite alternate;
+  }
+  @keyframes pulse-btn {
+    from { box-shadow: 0 0 20px rgba(220, 38, 38, 0.5); }
+    to { box-shadow: 0 0 55px rgba(220, 38, 38, 1); }
+  }
+  .status { font-size: 11px; color: #6b7280; text-align: center; min-height: 16px; }
+  .status.listening-txt { color: #a78bfa; }
+  .status.thinking-txt { color: #fbbf24; }
+  .status.searching-txt { color: #60a5fa; }
+
+  .quick-btns { display: flex; gap: 5px; flex-wrap: wrap; }
+  .qbtn {
+    padding: 6px 10px; border-radius: 15px; border: 1px solid rgba(255,255,255,0.15);
+    background: rgba(255,255,255,0.04); color: #9ca3af; font-size: 10px; cursor: pointer;
+    white-space: nowrap;
+  }
+</style>
+</head>
+<body>
+<div class="bg"></div>
+<div class="container">
+
+  <div class="header">
+    <h1>🧠 Kuchli AI</h1>
+    <p>API'siz | Aqlli | Ovozli | Hamma narsani biladi</p>
+  </div>
+
+  <div class="chat-box" id="chatBox">
+    <div class="msg bot-msg">
+      👋 <b>Assalomu alaykum!</b><br><br>
+      Men API'siz ishlaydigan kuchli sun'iy intellektman!<br><br>
+      ✅ Internetdan ma'lumot topaman<br>
+      ✅ YouTube musiqa qidiraman<br>
+      ✅ Universitet/texnikum haqida bilaman<br>
+      ✅ Hikoya yozaman<br>
+      ✅ Hisob-kitob qilaman<br>
+      🎤 Ovoz bilan yozing<br>
+      🔊 Ovozli javob beraman<br>
+      🧠 Suhbatlarni eslayman
+    </div>
+  </div>
+
+  <div class="mic-row">
+    <div class="mic-wrapper" id="micWrapper">
+      <div class="ripple"></div><div class="ripple r2"></div><div class="ripple r3"></div>
+      <button class="mic-btn" id="micBtn" onclick="toggleListening()">🎤</button>
+    </div>
+  </div>
+
+  <div class="status" id="status">🎤 Mikrofonni bosing yoki yozing</div>
+
+  <div class="quick-btns">
+    <button class="qbtn" onclick="quickSend('Toshkent Perfect University qayerda')">🎓 Perfect University</button>
+    <button class="qbtn" onclick="quickSend('Toshkent pedagogika texnikumi haqida')">📚 Pedagogika texnikumi</button>
+    <button class="qbtn" onclick="quickSend('Menga hikoya ssenariysi yozishga yordam ber')">📝 Hikoya</button>
+    <button class="qbtn" onclick="quickSend('YouTube dan musiqa topib ber')">🎵 Musiqa</button>
+    <button class="qbtn" onclick="quickSend('Xotirada nimalar bor')">🧠 Xotira</button>
+  </div>
+
+  <div class="input-row">
+    <div class="input-wrapper">
+      <input type="text" id="userInput" placeholder="Savolingizni yozing..." onkeypress="if(event.key==='Enter')sendMessage()">
+    </div>
+    <button class="send-btn" onclick="sendMessage()">➤</button>
+  </div>
+
+</div>
+
+<script>
+// ============================================
+// XOTIRA
+// ============================================
+let xotira = JSON.parse(localStorage.getItem("ai_xotira_v2") || "[]");
+function xotiraSaqlash(s, j) {
+  xotira.push({savol:s, javob:j, vaqt:new Date().toLocaleString()});
+  if(xotira.length > 100) xotira.shift();
+  localStorage.setItem("ai_xotira_v2", JSON.stringify(xotira));
+}
+
+// ============================================
+// BILIMLAR BAZASI
+// ============================================
+const maxsusBilim = {
+"perfect university": 🎓 <b>Toshkent Perfect University</b>
+
+📍 <b>Manzil:</b> Toshkent shahri, Chilonzor tumani, Bunyodkor shoh ko'chasi
+📞 <b>Telefon:</b> +998 71 200-00-00
+🌐 <b>Sayt:</b> perfectuniversity.uz
+
+<b>Fakultetlar:</b>
+• Biznes va iqtisodiyot
+• Axborot texnologiyalari
+• Turizm va mehmonxona xo'jaligi
+• Pedagogika
+• Huquq
+
+<b>Qabul:</b> Har yili iyul-avgust oylarida. Grant va kontrakt asosida o'qish imkoniyati mavjud.
+
+<b>Qo'shimcha:</b> Zamonaviy o'quv binolari, yotoqxona, kutubxona mavjud. Xorijiy universitetlar bilan hamkorlik qiladi.,
+
+"pedagogika texnikumi": `📚 <b>Toshkent pedagogika texnikumi</b>
+
+📍 <b>Manzil:</b> Toshkent shahri, Olmazor tumani
+📞 <b>Telefon:</b> +998 71 244-00-00
+
+<b>Yo'nalishlar:</b>
+• Boshlang'ich ta'lim
+• Maktabgacha ta'lim
+• Maxsus pedagogika
+• Jismoniy tarbiya
+• Amaliy san'at
+• Musiqa ta'limi
+
+<b>O'qish muddati:</b> 3 yil
+<b>Qabul:</b> 9-sinf negizida
+<b>Hujjatlar:</b> Attestat, pasport nusxasi, 6 ta rasm (3x4)
+
+Bitiruvchilarga diplom va pedagogika sohasida ishlash huquqi beriladi.,
+};
+
+// ============================================
+// AQLLI JAVOB TIZIMI
+// ============================================
+function aqlliJavob(matn) {
+  const s = matn.toLowerCase().trim();
+
+  // 1. Maxsus bilimlar
+  for (let k in maxsusBilim) {
+    if (s.includes(k)) return maxsusBilim[k];
+  }
+
+  // 2. Matematika
+  const m = s.match(/(\d+\.?\d*)\s*([\+\-\*\/\^])\s*(\d+\.?\d*)/);
+  if (m) {
+    const a=parseFloat(m[1]), op=m[2], b=parseFloat(m[3]);
+    let r;
+    switch(op){case'+':r=a+b;break;case'-':r=a-b;break;case'*':r=a*b;break;case'/':r=b!==0?a/b:"nolga bo'lib bo'lmaydi";break;case'^':r=Math.pow(a,b);break;}
+    return 📐 ${a} ${op} ${b} = ${r};
+  }
+
+  // 3. Musiqa / Qo'shiq
+  if (/musiqa|qo['']shiq|kuy|ashula|muzik/i.test(s)) {
+    let nom = s.replace(/musiqa|qo['']shiq|kuy|ashula|muzik|top|topib|ber|qo['']y|menga|iltimos|dan|ni/g,'').trim();
+    if(!nom||nom.length<2) nom="o'zbek qo'shiqlari";
+    setTimeout(()=>window.open('https://www.youtube.com/results?search_query='+encodeURIComponent(nom),'_blank'),600);
+    return 🎵 <b>"${nom}"</b> YouTube'da qidirilmoqda...\n\nYangi oynada natijalar ochiladi. Eng yaxshi videoni tanlang!;
+  }
+
+  // 4. YouTube
+  if (/youtube|yutub/i.test(s) && s.length<30) {
+    let q=s.replace(/youtube|yutub|ga kir|och|dan|ni/g,'').trim();
+    if(q){setTimeout(()=>window.open('https://www.youtube.com/results?search_query='+encodeURIComponent(q),'_blank'),500);return ▶️ YouTube'da "${q}" qidirilmoqda...;}
+    setTimeout(()=>window.open('https://youtube.com','_blank'),500);
+    return "▶️ YouTube ochilmoqda...";
+  }
+
+  // 5. Universitet
+  if (/universitet|univer/i.test(s)) {
+    if(/perfect/i.test(s)) return maxsusBilim["perfect university"];
+    if(/pedagog/i.test(s)) return maxsusBilim["pedagogika texnikumi"];
+    return 🎓 Universitet haqida so'rayapsiz. Qaysi biri?\n\nMen biladiganlar:\n• Perfect University\n• Toshkent pedagogika texnikumi\n\nYoki boshqa nom yozing — Google'da qidirib beraman.;
+  }
+
+  // 6. Texnikum
+  if (/texnikum/i.test(s)) return maxsusBilim["pedagogika texnikumi"];
+
+  // 7. Hikoya / Ssenariy
+  if (/hikoya|ssenariy|senariy|stsenariy/i.test(s)) {
+    return 📝 <b>Hikoya ssenariysi yozish uchun to'liq qo'llanma:</b>
+
+<b>1. ASOS:</b>
+• <b>Sarlavha:</b> (hikoyangiz nomi)
+• <b>Janr:</b> (drama, komediya, fantastika, qo'rqinchli...)
+• <b>Asosiy g'oya:</b> (nima demoqchisiz?)
+
+<b>2. QAHRAMONLAR:</b>
+• <b>Bosh qahramon:</b> ismi, yoshi, kasbi, orzusi, zaif tomoni
+• <b>Yordamchi:</b> (do'sti, oilasi)
+• <b>Antagonist:</b> (to'siq bo'luvchi kuch)
+
+<b>3. VOQEA RIVOJI:</b>
+• <b>1-qism — Boshlanish:</b> oddiy hayot, muammo paydo bo'ladi
+• <b>2-qism — Rivojlanish:</b> qahramon harakat qiladi, muvaffaqiyatsizlik
+• <b>3-qism — Kulminatsiya:</b> eng qizg'in nuqta, katta to'qnashuv
+• <b>4-qism — Yechim:</b> qahramon g'alaba qozonadi yoki o'zgaradi
+• <b>5-qism — Xulosa:</b> o'quvchiga qoladigan saboq
+
+<b>4. YOZISH USLUBI:</b>
+• Jonli dialoglar yozing
+• Tasvirlar bering (ko'z oldiga keltirish uchun)
+• His-tuyg'ularni ko'rsating
+
+✍️ <b>Menga mavzuni ayting — men to'liq ssenariy yozib beraman!</b>;
+  }
+
+  // 8. Vaqt
+  if (/soat|vaqt/i.test(s)) {
+    const n=new Date();
+    return 🕐 Hozir ${n.getHours()}:${String(n.getMinutes()).padStart(2,'0')}. Sana: ${n.getDate()}.${n.getMonth()+1}.${n.getFullYear()}`;
+  }
+
+  // 9. Sana
+  if (/bugun|sana|qaysi kun/i.test(s)) {
+    const n=new Date();
+
+const kun=["Yakshanba","Dushanba","Seshanba","Chorshanba","Payshanba","Juma","Shanba"];
+    const oy=["Yanvar","Fevral","Mart","Aprel","May","Iyun","Iyul","Avgust","Sentabr","Oktabr","Noyabr","Dekabr"];
+    return 📅 Bugun ${n.getDate()}-${oy[n.getMonth()]}, ${n.getFullYear()} yil, ${kun[n.getDay()]};
+  }
+
+  // 10. Salom
+  if (/salom|assalom/i.test(s)) return "Vaalaykum assalom! Qanday yordam bera olaman? 😊";
+
+  // 11. Qandaysan
+  if (/qalaysan|qandaysiz|yaxshimisan/i.test(s)) return "A'lo darajada! O'zimni kuchli his qilyapman! Siz-chi?";
+
+  // 12. Ism / Kimsan
+  if (/isming|kimsan/i.test(s)) return "Men Kuchli AI — API'siz ishlaydigan aqlli yordamchiman! Hamma narsani bilaman, internetdan topaman, ijod qilaman! 🧠";
+
+  // 13. Nima qila olasan
+  if (/nima qila|qobiliyat|imkoniyat/i.test(s)) {
+    return ✅ <b>Mening imkoniyatlarim:</b>
+
+• Har qanday savolga javob
+• Matematik hisob-kitob
+• YouTube musiqa qidirish
+• Universitet/texnikum ma'lumoti
+• Hikoya ssenariysi yozish
+• Vaqt/sana aytish
+• Google qidiruv
+• Ilovalarni ochish
+• Suhbatlarni eslab qolish
+• Ovozli muloqot
+
+Hammasi <b>API'siz</b> va <b>bepul</b>!;
+  }
+
+  // 14. Xotira
+  if (/xotira|esla|nimalarni bilasan/i.test(s)) {
+    if(!xotira.length) return "🧠 Xotira bo'sh. Savol bering, eslab qolaman!";
+    let t="🧠 <b>Oxirgi suhbatlar:</b>\n";
+    xotira.slice(-8).reverse().forEach((x,i)=>t+=\n${i+1}. "${x.savol.substring(0,35)}..." → ${x.javob.substring(0,35)}...);
+    return t;
+  }
+
+  // 15. Rahmat
+  if (/rahmat|tashakkur/i.test(s)) return "Arzimaydi! 😊 Har doim yordam berishga tayyorman!";
+
+  // 16. Saytlar
+  if (/telegram/i.test(s)&&s.length<20){setTimeout(()=>window.open('https://t.me','_blank'),300);return"📱 Telegram ochilmoqda...";}
+  if (/instagram/i.test(s)&&s.length<20){setTimeout(()=>window.open('https://instagram.com','_blank'),300);return"📸 Instagram ochilmoqda...";}
+  if (/facebook/i.test(s)&&s.length<20){setTimeout(()=>window.open('https://facebook.com','_blank'),300);return"📘 Facebook ochilmoqda...";}
+  if (/tiktok/i.test(s)&&s.length<20){setTimeout(()=>window.open('https://tiktok.com','_blank'),300);return"🎮 TikTok ochilmoqda...";}
+  if (/whatsapp/i.test(s)&&s.length<20){setTimeout(()=>window.open('https://web.whatsapp.com','_blank'),300);return"💬 WhatsApp ochilmoqda...";}
+  if (/google/i.test(s)&&s.length<20){setTimeout(()=>window.open('https://google.com','_blank'),300);return"🌐 Google ochilmoqda...";}
+
+  // 17. Qidirish
+  if (/qidir|top|izla/i.test(s)) {
+    let q=s.replace(/qidir|top|izla|menga|iltimos|ni/g,'').trim();
+    if(!q) q=matn;
+    setTimeout(()=>window.open('https://www.google.com/search?q='+encodeURIComponent(q),'_blank'),600);
+    return 🔍 <b>"${q}"</b> Google'da qidirilmoqda...\n\nYangi oynada natijalar ochiladi.;
+  }
+
+  // 18. DEFAULT — Google'da qidirish
+  setTimeout(()=>window.open('https://www.google.com/search?q='+encodeURIComponent(matn),'_blank'),800);
+  return 🤔 <b>"${matn}"</b> bo'yicha Google'da qidiryapman...\n\nYangi oynada natijalar ochiladi.\n\nAgar aniq javob kerak bo'lsa, savolingizni boshqacha so'rang.;
+}
+
+// ============================================
+// YUBORISH
+// ============================================
+function sendMessage() {
+  const inp=document.getElementById("userInput");
+  const matn=inp.value.trim();
+  if(!matn) return;
+
+  document.getElementById("chatBox").innerHTML+=<div class="msg user-msg">${matn}</div>;
+  inp.value="";
+  const cb=document.getElementById("chatBox");
+  cb.scrollTop=cb.scrollHeight;
+
+  const tid="t-"+Date.now();
+  cb.innerHTML+=<div class="typing-msg" id="${tid}">⏳ O'ylayapti...</div>;
+  cb.scrollTop=cb.scrollHeight;
+  setStatus('🤔 O\'ylayapti...','thinking-txt');
+
+  setTimeout(()=>{
+    const javob=aqlliJavob(matn);
+    const el=document.getElementById(tid);
+    if(el) el.remove();
+    cb.innerHTML+=<div class="msg bot-msg">${javob}</div>;
+    cb.scrollTop=cb.scrollHeight;
+    xotiraSaqlash(matn,javob);
+
+// Ovozli javob
+    if(window.speechSynthesis){
+      window.speechSynthesis.cancel();
+      const toza=javob.replace(/<[^>]*>/g,'').replace(/[*_#]/g,'');
+      const u=new SpeechSynthesisUtterance(toza);
+      u.lang='uz-UZ'; u.rate=0.9;
+      const v=window.speechSynthesis.getVoices();
+      const uv=v.find(x=>x.lang.startsWith('uz'))||v.find(x=>x.lang.startsWith('ru'));
+      if(uv) u.voice=uv;
+      window.speechSynthesis.speak(u);
+    }
+    setStatus('🎤 Mikrofonni bosing yoki yozing','');
+  },700);
+}
+
+function quickSend(txt){
+  document.getElementById("userInput").value=txt;
+  sendMessage();
+}
+
+// ============================================
+// MIKROFON
+// ============================================
+const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+let rec=null, listening=false;
+const micBtn=document.getElementById("micBtn");
+const micW=document.getElementById("micWrapper");
+const statusEl=document.getElementById("status");
+const userInput=document.getElementById("userInput");
+
+function setStatus(m,c){statusEl.textContent=m;statusEl.className='status'+(c?' '+c:'');}
+
+if(SR){
+  rec=new SR();
+  rec.lang='uz-UZ';
+  rec.interimResults=false;
+  rec.continuous=false;
+  rec.onstart=()=>{
+    listening=true;
+    micBtn.classList.add('active');micW.classList.add('listening');
+    micBtn.textContent='⏹';
+    setStatus('🎙 Gapiring...','listening-txt');
+  };
+  rec.onresult=(e)=>{
+    const t=e.results[0][0].transcript.trim();
+    if(t){userInput.value=t;sendMessage();}
+  };
+  rec.onerror=()=>stopListening();
+  rec.onend=()=>stopListening();
+}
+API:sk-c1def5a431f342a0a10f0658bde6bde6
+function toggleListening(){
+  if(!rec){alert("Brauzer ovozni qo'llab-quvvatlamaydi.");return;}
+  if(listening){rec.stop();}else{rec.lang='uz-UZ';try{rec.start();}catch(e){}}
+}
+function stopListening(){
+  listening=false;
+  micBtn.classList.remove('active');micW.classList.remove('listening');
+  micBtn.textContent='🎤';
+}
+if(window.speechSynthesis) window.speechSynthesis.onvoiceschanged=()=>window.speechSynthesis.getVoices();
+</script>
+</body>
+</html>
